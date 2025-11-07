@@ -1758,6 +1758,7 @@ var playSelectedFile = function (f, ta, tb, s, audioOnly) {
   let vol = storage.getItem("ab.mediaVolume");
   myVideo.volume = vol ? Number(vol) : 0.5;
   myVideo.width = $("#myResizable").width();
+  myVideo.style = "width: 100%";
   myVideo.addEventListener("durationchange", function (e) {
     while (scrubTimer.length) clearInterval(scrubTimer.pop());
     loopMeas.splice(0);
