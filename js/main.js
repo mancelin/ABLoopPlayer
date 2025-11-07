@@ -186,7 +186,16 @@ $(document).ready(function () {
   bmkAddButton = document.getElementById("bmkAddButton");
   inputVT.addEventListener("change", function (e) {
     $("#inputVT").blur(); //chromium
-    playSelectedFile(e.target.files[0], null, null, null, null);
+    const file = e.target.files[0];
+    const fileURL = URL.createObjectURL(file);
+    const wavesurfer = WaveSurfer.create({
+      container: "#waveform",
+      waveColor: "#4F4A85",
+      progressColor: "#383351",
+      url: fileURL,
+    });
+
+    playSelectedFile(file, null, null, null, null);
   });
   inputVT.addEventListener("input", function (e) {
     //allows us to start video by hitting the spacebar, after a file
