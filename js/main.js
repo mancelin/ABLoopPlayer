@@ -29,15 +29,17 @@ var isTimeBSet = false;
 var scrubTimer = [];
 var knownIDs = [];
 var knownMedia = [];
-const timePattern = '(?:\\d+:[0-5]\\d|[0-5]?\\d):[0-5]\\d(?:\\.\\d{1,3})?';
+const timePattern = "(?:\\d+:[0-5]\\d|[0-5]?\\d):[0-5]\\d(?:\\.\\d{1,3})?";
 var URL = window.URL;
 
 var touchStartHandled = false,
   touchEndHandled = false;
 
-var crossmark = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" version="1.1">' +
+var crossmark =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" version="1.1">' +
   '<path stroke="red" stroke-width="2" stroke-linecap="butt" d="M1 1L9 9M1 9L9 1"/></svg>';
-var crossMarkUrl = "url('data:image/svg+xml;base64," + window.btoa(crossmark) + "')";
+var crossMarkUrl =
+  "url('data:image/svg+xml;base64," + window.btoa(crossmark) + "')";
 
 try {
   var storage = window.localStorage;
@@ -47,7 +49,7 @@ try {
 
 //function returning ref to bookmarks array and beat length
 //for given id, if present in local storage or in optional array argument
-var queryBmksAndBn = function(id, where = null) {
+var queryBmksAndBn = function (id, where = null) {
   let entry;
   if (id && where) {
     if (JSON.parse(where["ab." + id])) entry = JSON.parse(where["ab." + id]);
@@ -56,12 +58,14 @@ var queryBmksAndBn = function(id, where = null) {
   }
   if (id && entry) {
     return [
-      (Array.isArray(entry.bmks) && entry.bmks.length ? entry.bmks : null),
-      (!isNaN(Number(entry.bn)) && Number(entry.bn) > 0 ? Number(entry.bn) : null)
+      Array.isArray(entry.bmks) && entry.bmks.length ? entry.bmks : null,
+      !isNaN(Number(entry.bn)) && Number(entry.bn) > 0
+        ? Number(entry.bn)
+        : null,
     ];
   }
   return [null, null];
-}
+};
 
 // triggered when another player instance writes to storage
 window.onstorage = () => {
@@ -74,22 +78,23 @@ window.onstorage = () => {
   if (bmks) bookmarksUpdate(bmks, -1);
   if (bn) {
     beatNormal = bn;
-    tapButton.innerHTML = Math.round(60 / beatNormal * rate).toString();
+    tapButton.innerHTML = Math.round((60 / beatNormal) * rate).toString();
   } else tapButton.innerHTML = "tap";
 };
 
-var storageWriteKeyVal = function(k, v) {
+var storageWriteKeyVal = function (k, v) {
   try {
     storage.setItem(k, v);
   } catch (e) {
     // test for storage full and delete old entries
     if (
-      e instanceof DOMException && (
-        e.code === 22 || // everything except Firefox
+      e instanceof DOMException &&
+      (e.code === 22 || // everything except Firefox
         e.name === "QuotaExceededError" ||
         e.code === 1014 || // Firefox
-        e.name === "NS_ERROR_DOM_QUOTA_REACHED"
-      ) && storage && storage.length !== 0
+        e.name === "NS_ERROR_DOM_QUOTA_REACHED") &&
+      storage &&
+      storage.length !== 0
     ) {
       if (knownIDs.length > knownMedia.length) {
         storage.removeItem("ab." + knownIDs.pop());
@@ -101,26 +106,52 @@ var storageWriteKeyVal = function(k, v) {
       storageWriteKeyVal(k, v); //try again
     }
   }
-}
+};
 
 //HTML elements
-var YTids, introTextBr, inputYT, inputVT, ytPlayer, help, searchButtonYT,
-  aonly, intro, myTimeA, myTimeB, myBmkSpanInner, myBookmarks, loopButton, bmkAddButton,
-  loopBackwardsButton, loopHalveButton, loopDoubleButton, loopForwardsButton,
-  annotButton, trashButton, tapButton, importButton, exportButton, shareButton,
-  quant, handleA, handleB;
+var YTids,
+  introTextBr,
+  inputYT,
+  inputVT,
+  ytPlayer,
+  help,
+  searchButtonYT,
+  aonly,
+  intro,
+  myTimeA,
+  myTimeB,
+  myBmkSpanInner,
+  myBookmarks,
+  loopButton,
+  bmkAddButton,
+  loopBackwardsButton,
+  loopHalveButton,
+  loopDoubleButton,
+  loopForwardsButton,
+  annotButton,
+  trashButton,
+  tapButton,
+  importButton,
+  exportButton,
+  shareButton,
+  quant,
+  handleA,
+  handleB;
 
 var tooltipOpts = {
   position: {
     my: "left bottom",
     at: "right+5px bottom",
-    collision: "none"
-  }
+    collision: "none",
+  },
 };
 
 var myBmkSpanInnerTitleBak;
 
-$(document).ready(function() {
+// audio visualization
+var wavesurfer;
+
+$(document).ready(function () {
   $("#introText").width($("#widthA").width() + 1);
   //if we are online, asynchronously load YT player api
   if (navigator.onLine) {
@@ -156,11 +187,25 @@ $(document).ready(function() {
   tapButton = document.getElementById("tapButton");
   quant = document.getElementById("quant");
   bmkAddButton = document.getElementById("bmkAddButton");
-  inputVT.addEventListener("change", function(e) {
+  inputVT.addEventListener("change", function (e) {
     $("#inputVT").blur(); //chromium
-    playSelectedFile(e.target.files[0], null, null, null, null);
+    const file = e.target.files[0];
+    const fileURL = URL.createObjectURL(file);
+    wavesurfer = WaveSurfer.create({
+      container: "#waveform",
+      waveColor: "#4F4A85",
+      progressColor: "#383351",
+      url: fileURL,
+    });
+    // on click on wavesurfer, set current time and play
+    wavesurfer.on("interaction", (newTime) => {
+      setCurrentTime(newTime);
+      playVideo();
+    });
+
+    playSelectedFile(file, null, null, null, null);
   });
-  inputVT.addEventListener("input", function(e) {
+  inputVT.addEventListener("input", function (e) {
     //allows us to start video by hitting the spacebar, after a file
     //has been selected via file input dialog
     $("#myVideo").focus(); //firefox
@@ -169,7 +214,8 @@ $(document).ready(function() {
   inputYT.disabled = searchButtonYT.disabled = true;
   //initialise storage or convert it from previous versions
   if (
-    !storage.getItem("ab.version") || Number(storage.getItem("ab.version")) != appversion
+    !storage.getItem("ab.version") ||
+    Number(storage.getItem("ab.version")) != appversion
   ) {
     let appData = convertData(JSON.parse(JSON.stringify(storage)));
     storage.clear();
@@ -182,49 +228,63 @@ $(document).ready(function() {
     knownIDs = JSON.parse(storage.getItem("ab.knownIDs"));
     let items = knownIDs.length;
     let idx; // remove erroneous `null' entries
-    while (knownIDs.length && (idx = knownIDs.indexOf(null)) > -1) knownIDs.splice(idx, 1);
-    if (items != knownIDs.length) storageWriteKeyVal("ab.knownIDs", JSON.stringify(knownIDs));
+    while (knownIDs.length && (idx = knownIDs.indexOf(null)) > -1)
+      knownIDs.splice(idx, 1);
+    if (items != knownIDs.length)
+      storageWriteKeyVal("ab.knownIDs", JSON.stringify(knownIDs));
     for (let i = 0; i < knownIDs.length && i < 100; i++) {
       let z = document.createElement("OPTION");
       z.setAttribute("value", knownIDs[i]);
       YTids.appendChild(z);
     }
   }
-  inputYT.value = knownIDs.length ? knownIDs[0] : "https://youtu.be/2kotK9FNEYU";
+  inputYT.value = knownIDs.length
+    ? knownIDs[0]
+    : "https://youtu.be/2kotK9FNEYU";
   $("#scrub").slider({
     min: 0,
     step: 0.001,
     range: "min",
-    slide: function(e, ui) {
+    slide: function (e, ui) {
       loopMeas.splice(0);
       setCurrentTime(ui.value);
     },
-  })
+  });
   $("#slider").slider({
     min: 0,
     step: 0.005,
     range: true,
-    start: function(e, ui) {
+    start: function (e, ui) {
       onSliderStart(e, ui);
     },
-    slide: function(e, ui) {
+    slide: function (e, ui) {
       onSliderSlide(e, ui);
     },
-    change: function(e, ui) {
+    change: function (e, ui) {
       onSliderChange(e, ui);
     },
   });
-  $("#slider .ui-slider-handle").first().html(
-      '<span id="handleA" class="abhandle" style="margin-left: -16px;">' + 'A' + '</span>'
-    ).on("focus", () => {
+  $("#slider .ui-slider-handle")
+    .first()
+    .html(
+      '<span id="handleA" class="abhandle" style="margin-left: -16px;">' +
+        "A" +
+        "</span>"
+    )
+    .on("focus", () => {
       handleA.style.backgroundColor = "#fcc";
     })
     .on("blur", () => {
       handleA.style.background = "none";
     });
-  $("#slider .ui-slider-handle").last().html(
-      '<span id="handleB" class="abhandle" style="margin-right: -16px;">' + 'B' + '</span>'
-    ).on("focus", () => {
+  $("#slider .ui-slider-handle")
+    .last()
+    .html(
+      '<span id="handleB" class="abhandle" style="margin-right: -16px;">' +
+        "B" +
+        "</span>"
+    )
+    .on("focus", () => {
       handleB.style.backgroundColor = "#fcc";
     })
     .on("blur", () => {
@@ -245,7 +305,7 @@ $(document).ready(function() {
   if (storage.getItem("ab.intro") != "unchecked") intro.checked = true;
   toggleIntro(intro, help);
   let speedHandle = $("#speed .ui-slider-handle");
-  speedHandle.on("dblclick", function() {
+  speedHandle.on("dblclick", function () {
     setPlaybackRate(1.0);
   });
   $("#speed").slider({
@@ -253,48 +313,52 @@ $(document).ready(function() {
     max: 2.0,
     step: 0.05,
     value: 1,
-    create: function() {
+    create: function () {
       speedHandle.text($(this).slider("value"));
     },
-    change: function(e, ui) {
+    change: function (e, ui) {
       speedHandle.text(getPlaybackRate());
     },
-    slide: function(e, ui) {
+    slide: function (e, ui) {
       speedHandle.text(ui.value);
     },
-    stop: function(e, ui) {
+    stop: function (e, ui) {
       setPlaybackRate(ui.value);
-    }
+    },
   });
-  bmkAddButton.addEventListener("click", function(e) {
+  bmkAddButton.addEventListener("click", function (e) {
     bmkAdd();
   });
-  $("#myBookmarks").selectmenu({
+  $("#myBookmarks")
+    .selectmenu({
       width: null, //allow sizing via css
       position: {
         my: "left top",
         at: "left bottom",
-        collision: "flip"
+        collision: "flip",
       },
-      select: function(e, ui) {
+      select: function (e, ui) {
         myBmkSpanInner.title = myBmkSpanInnerTitleBak;
-        if ($("#myBmkSpanInner").tooltip("instance")) $("#myBmkSpanInner").tooltip("destroy");
+        if ($("#myBmkSpanInner").tooltip("instance"))
+          $("#myBmkSpanInner").tooltip("destroy");
         onBmkSelect(ui.item.index);
-      }
-    }).selectmenu("menuWidget")
+      },
+    })
+    .selectmenu("menuWidget")
     .addClass("bookmarklist")
     .tooltip(tooltipOpts);
-  $("#myBookmarks-button").on("mouseenter",
-    function() {
-      myBmkSpanInner.title = myBmkSpanInnerTitleBak;
-      if ($("#myBmkSpanInner").tooltip("instance")) $("#myBmkSpanInner").tooltip("destroy");
-      let bmk = document.getElementById("bmk" + $("#myBookmarks").prop("selectedIndex"));
-      if (bmk && bmk.title) {
-        myBmkSpanInner.title = bmk.title;
-        $("#myBmkSpanInner").tooltip(tooltipOpts).tooltip("open");
-      }
+  $("#myBookmarks-button").on("mouseenter", function () {
+    myBmkSpanInner.title = myBmkSpanInnerTitleBak;
+    if ($("#myBmkSpanInner").tooltip("instance"))
+      $("#myBmkSpanInner").tooltip("destroy");
+    let bmk = document.getElementById(
+      "bmk" + $("#myBookmarks").prop("selectedIndex")
+    );
+    if (bmk && bmk.title) {
+      myBmkSpanInner.title = bmk.title;
+      $("#myBmkSpanInner").tooltip(tooltipOpts).tooltip("open");
     }
-  );
+  });
   $("#mainDiv").show();
   playSelectedFile(null, null, null, null, null);
 });
@@ -306,25 +370,28 @@ document.addEventListener("visibilitychange", () => {
 });
 
 //add some hotkeys
-window.addEventListener("keydown", function(e) {
+window.addEventListener("keydown", function (e) {
   if ($("input").is(":focus")) return;
-  else if ($(event.target).closest('.ui-dialog').length > 0) {
-    if (e.which == 13 || e.which == 27) { // [Esc] and [Enter] handling in dialog
+  else if ($(event.target).closest(".ui-dialog").length > 0) {
+    if (e.which == 13 || e.which == 27) {
+      // [Esc] and [Enter] handling in dialog
       e.preventDefault();
-      if (e.which == 13 && e.target.id != "Cancel") dialogBtns[1].click(); // trigger "ok" instead of enter
+      if (e.which == 13 && e.target.id != "Cancel")
+        dialogBtns[1].click(); // trigger "ok" instead of enter
       else dialogBtns[0].click(); // "cancel" on esc or if event target is the cancel button
     }
     return;
   }
 
-  if (e.which == 27 || e.which == 76 //[Esc] or [L]
-    &&
-    !loopButton.disabled
+  if (
+    e.which == 27 ||
+    (e.which == 76 && //[Esc] or [L]
+      !loopButton.disabled)
   ) {
     e.preventDefault();
     onLoopDown();
-  } else if (e.which == 36 // [Home]
-    &&
+  } else if (
+    e.which == 36 && // [Home]
     !$("#slider .ui-slider-handle").is(":focus") &&
     !$("#speed .ui-slider-handle").is(":focus") &&
     !$("select").is(":focus")
@@ -334,8 +401,8 @@ window.addEventListener("keydown", function(e) {
       setCurrentTime(0);
       loopMeas.splice(0);
     } catch (err) {}
-  } else if (e.which == 35 // [End]
-    &&
+  } else if (
+    e.which == 35 && // [End]
     !$("#slider .ui-slider-handle").is(":focus") &&
     !$("#speed .ui-slider-handle").is(":focus") &&
     !$("select").is(":focus")
@@ -351,8 +418,8 @@ window.addEventListener("keydown", function(e) {
         loopMeas.splice(0);
       }
     } catch (err) {}
-  } else if (e.which == 37 // [<--]
-    &&
+  } else if (
+    e.which == 37 && // [<--]
     !$("#slider .ui-slider-handle").is(":focus") &&
     !$("#speed .ui-slider-handle").is(":focus") &&
     !$("select").is(":focus")
@@ -362,8 +429,8 @@ window.addEventListener("keydown", function(e) {
       setCurrentTime(getCurrentTime() - 5);
       loopMeas.splice(0);
     } catch (err) {}
-  } else if (e.which == 39 // [-->]
-    &&
+  } else if (
+    e.which == 39 && // [-->]
     !$("#slider .ui-slider-handle").is(":focus") &&
     !$("#speed .ui-slider-handle").is(":focus") &&
     !$("select").is(":focus")
@@ -380,27 +447,32 @@ window.addEventListener("keydown", function(e) {
         loopMeas.splice(0);
       }
     } catch (err) {}
-  } else if (e.which == 32) { // [Space]
+  } else if (e.which == 32) {
+    // [Space]
     e.preventDefault();
     try {
       playPause();
     } catch (err) {}
-  } else if (e.which == 84 && !tapButton.disabled) { // [T]
+  } else if (e.which == 84 && !tapButton.disabled) {
+    // [T]
     e.preventDefault();
     onTap(tapButton);
-  } else if (e.which == 81 && !quant.disabled) { // [Q]
+  } else if (e.which == 81 && !quant.disabled) {
+    // [Q]
     e.preventDefault();
     quant.checked = !quant.checked;
     toggleQuant(quant, help);
-  } else if (e.which == 65 && isTimeASet && isTimeBSet) { // [A]
+  } else if (e.which == 65 && isTimeASet && isTimeBSet) {
+    // [A]
     e.preventDefault();
     onJumpToA();
   }
 });
 
-window.addEventListener("keyup", function(e) {
+window.addEventListener("keyup", function (e) {
   if ($("input").is(":focus")) return;
-  if (e.which == 65 && isTimeASet && isTimeBSet) { //"A"
+  if (e.which == 65 && isTimeASet && isTimeBSet) {
+    //"A"
     e.preventDefault();
     playVideo(); //"a"
   }
@@ -410,144 +482,170 @@ window.addEventListener("keyup", function(e) {
 // Usage: dialogBtns=promptDialog(<callback>(ret), <title>, <text>, <default input>,
 //   [{r:<rows>, c:<cols>}]);
 var dialogBtns;
-var promptDialog = function(onclose, title, text, placeholder, input, size = {
-  r: 4,
-  c: 50
-}) {
+var promptDialog = function (
+  onclose,
+  title,
+  text,
+  placeholder,
+  input,
+  size = {
+    r: 4,
+    c: 50,
+  }
+) {
   let z = $(
     '<div style="width:fit-content;display:inline-block;"><p>' +
-    text +
-    '</p><textarea id="txtarea"' +
-    (placeholder ? ' placeholder="' + placeholder + '"' : "") +
-    ' rows=' + size.r + ' cols=' + size.c +
-    ' onfocus="this.select();">' +
-    (input ? input : "") + '</textarea></div>'
+      text +
+      '</p><textarea id="txtarea"' +
+      (placeholder ? ' placeholder="' + placeholder + '"' : "") +
+      " rows=" +
+      size.r +
+      " cols=" +
+      size.c +
+      ' onfocus="this.select();">' +
+      (input ? input : "") +
+      "</textarea></div>"
   );
   $(document.body).append(z);
   let ret = input;
-  $(z).dialog({
-    autoOpen: true,
-    modal: true,
-    classes: {
-      "ui-dialog": title ? "" : "noTitlebar"
-    },
-    title: title,
-    closeOnEscape: false,
-    closeText: "hide",
-    width: "auto",
-    minHeight: 0,
-    resizable: false,
-    buttons: [{
-        id: "Cancel",
-        text: "Cancel",
-        click: function() {
-          $(z).dialog("close");
-        }
+  $(z)
+    .dialog({
+      autoOpen: true,
+      modal: true,
+      classes: {
+        "ui-dialog": title ? "" : "noTitlebar",
       },
-      {
-        text: "Ok",
-        click: function() {
-          ret = $("#txtarea").val();
-          $(z).dialog("close");
-        }
-      }
-    ],
-    close: function(e, ui) {
-      onclose(ret);
-      this.parentNode.removeChild(this);
-    },
-  }).focus();
+      title: title,
+      closeOnEscape: false,
+      closeText: "hide",
+      width: "auto",
+      minHeight: 0,
+      resizable: false,
+      buttons: [
+        {
+          id: "Cancel",
+          text: "Cancel",
+          click: function () {
+            $(z).dialog("close");
+          },
+        },
+        {
+          text: "Ok",
+          click: function () {
+            ret = $("#txtarea").val();
+            $(z).dialog("close");
+          },
+        },
+      ],
+      close: function (e, ui) {
+        onclose(ret);
+        this.parentNode.removeChild(this);
+      },
+    })
+    .focus();
   return $(z).dialog("option", "buttons");
-}
+};
 
 // a modal confirm dialog
 // Usage: confirmDialog(  <message text>, <callback>(<ret>) );
 //   <callback> must accept one arg which gets either "true" or "false"
 //   depending on the result of the user interaction
-var confirmDialog = function(msg, onclose) {
+var confirmDialog = function (msg, onclose) {
   let z = $("<div>" + msg + "</div>");
   $(document.body).append(z);
   let ret = false;
-  $(z).dialog({
-    autoOpen: true,
-    modal: true,
-    classes: {
-      "ui-dialog": "noTitlebar"
-    },
-    closeOnEscape: false,
-    minHeight: 0,
-    width: "auto",
-    buttons: [{
-        id: "Cancel",
-        text: "Cancel",
-        click: function() {
-          $(z).dialog("close");
-        }
+  $(z)
+    .dialog({
+      autoOpen: true,
+      modal: true,
+      classes: {
+        "ui-dialog": "noTitlebar",
       },
-      {
-        text: "Ok",
-        click: function() {
-          ret = true;
-          $(z).dialog("close");
-        }
-      }
-    ],
-    close: function(e, ui) {
-      onclose(ret);
-      this.parentNode.removeChild(this);
-    }
-  }).focus();
+      closeOnEscape: false,
+      minHeight: 0,
+      width: "auto",
+      buttons: [
+        {
+          id: "Cancel",
+          text: "Cancel",
+          click: function () {
+            $(z).dialog("close");
+          },
+        },
+        {
+          text: "Ok",
+          click: function () {
+            ret = true;
+            $(z).dialog("close");
+          },
+        },
+      ],
+      close: function (e, ui) {
+        onclose(ret);
+        this.parentNode.removeChild(this);
+      },
+    })
+    .focus();
   return $(z).dialog("option", "buttons");
-}
+};
 
 // a modal message box
 // Usage: messageBox( <title>, <message text> );
-var messageBox = function(title, msg) {
+var messageBox = function (title, msg) {
   let z = $("<div>" + msg + "</div>");
   $(document.body).append(z);
-  $(z).dialog({
-    title: title,
-    autoOpen: true,
-    modal: true,
-    closeOnEscape: false,
-    buttons: [{
-      text: "Ok",
-      click: function() {
-        $(z).dialog("close");
-      }
-    }],
-    close: function(e, ui) {
-      this.parentNode.removeChild(this);
-    }
-  }).focus();
+  $(z)
+    .dialog({
+      title: title,
+      autoOpen: true,
+      modal: true,
+      closeOnEscape: false,
+      buttons: [
+        {
+          text: "Ok",
+          click: function () {
+            $(z).dialog("close");
+          },
+        },
+      ],
+      close: function (e, ui) {
+        this.parentNode.removeChild(this);
+      },
+    })
+    .focus();
   let cancelok = $(z).dialog("option", "buttons")[0];
   return [cancelok, cancelok];
-}
+};
 
 //pretty printing the media time
-var secToTimeString = function(t) { // H:MM:SS.sss or M:SS.sss
+var secToTimeString = function (t) {
+  // H:MM:SS.sss or M:SS.sss
   let h = Math.floor(t / 3600);
   let m = Math.floor((t - h * 3600) / 60).toString();
   let s = Math.floor(t % 60).toString();
   let ms = (t - Math.floor(t)).toFixed(3).substring(1);
-  return (h > 0 ? h.toString() + ":" + m.padStart(2, '0') : m) +
-    ":" + s.padStart(2, '0') + ms;
-}
+  return (
+    (h > 0 ? h.toString() + ":" + m.padStart(2, "0") : m) +
+    ":" +
+    s.padStart(2, "0") +
+    ms
+  );
+};
 
 // time string to seconds
-var timeStringToSec = function(ts) {
+var timeStringToSec = function (ts) {
   let ta = ts.trim().split(":");
   let s = Number(ta[ta.length - 1]);
   s += 60 * Number(ta[ta.length - 2]);
   if (ta.length == 3) s += 3600 * Number(ta[0]);
   return s;
-}
+};
 
-var onSliderStart = function(e, ui) {
+var onSliderStart = function (e, ui) {
   dtAB = toNearest5ms(timeB - timeA);
-}
+};
 
-var onSliderChange = function(e, ui) {
+var onSliderChange = function (e, ui) {
   if (ui.handleIndex == 0) {
     timeA = Math.min(ui.values[0], ui.values[1] - 0.005);
   } else {
@@ -555,9 +653,9 @@ var onSliderChange = function(e, ui) {
   }
   loopMeas.splice(0);
   updateLoopUI(false);
-}
+};
 
-var onSliderSlide = function(e, ui) {
+var onSliderSlide = function (e, ui) {
   e.preventDefault();
   if (e.ctrlKey) {
     if (ui.handleIndex == 0) {
@@ -577,9 +675,9 @@ var onSliderSlide = function(e, ui) {
   }
   loopMeas.splice(0);
   updateLoopUI();
-}
+};
 
-var onLoopDown = function() {
+var onLoopDown = function () {
   if (isTimeBSet) {
     cancelABLoop();
   } else {
@@ -606,24 +704,28 @@ var onLoopDown = function() {
       loopButton.style.backgroundImage = "none";
     }
   }
-}
+};
 
 var loopMeas = [];
 var tLavg = 0;
 var tLcount = 0;
 var winSize = 7; //window size for sliding average of rewind latency
 
-var onScrubTimerUpdate = function() {
+var onScrubTimerUpdate = function () {
   let tMedia = getCurrentTime();
   $("#scrub").slider("option", "value", tMedia); //update the scrubbar
+  // update wavesurfer time
+  if (wavesurfer) wavesurfer.setTime(tMedia);
   if (!isTimeASet || !isTimeBSet) return;
   //loop control and latency measurement
   if (tMedia < timeA) loopMeas.splice(0);
-  if (tMedia < timeA && !intro.checked || tMedia >= timeB) {
+  if ((tMedia < timeA && !intro.checked) || tMedia >= timeB) {
     let curTime = performance.now() / 1000; //[s]
     let dtw = (timeB - timeA) / rate; //loop interval in walltime seceonds
     if (
-      document.visibilityState == "visible" && tMedia >= timeB && dtw > 0.2 &&
+      document.visibilityState == "visible" &&
+      tMedia >= timeB &&
+      dtw > 0.2 &&
       (!loopMeas.length || curTime - loopMeas.at(-1) >= dtw)
     ) {
       loopMeas.push(curTime);
@@ -636,7 +738,10 @@ var onScrubTimerUpdate = function() {
         //console.log(tLavg, tL);
         //quantise loop based on tapped tempo and latency
         if (quant.checked) {
-          let n = Math.max(2, Math.round((loopMeas[1] - loopMeas[0]) * rate / beatNormal)); //no less than two beats
+          let n = Math.max(
+            2,
+            Math.round(((loopMeas[1] - loopMeas[0]) * rate) / beatNormal)
+          ); //no less than two beats
           let tBOld = timeB;
           timeB = toNearest5ms(timeA + n * beatNormal - tLavg);
           if (timeB - tBOld != 0) updateLoopUI();
@@ -648,18 +753,22 @@ var onScrubTimerUpdate = function() {
   //don't allow tapping while looping
   if (tMedia >= timeA && !tapButton.disabled) tapButton.disabled = true;
   else if (tMedia < timeA && tapButton.disabled) tapButton.disabled = false;
-}
+};
 
-var onJumpToA = function() {
+var onJumpToA = function () {
   pauseVideo();
   setCurrentTime(timeA);
-  doAfterSeek((t) => {
-    $("#scrub").slider("option", "value", t);
-  }, timeA, timeA);
-}
+  doAfterSeek(
+    (t) => {
+      $("#scrub").slider("option", "value", t);
+    },
+    timeA,
+    timeA
+  );
+};
 
-const timeRegExp = new RegExp('^\\s*' + timePattern + '\\s*$');
-var onInputTime = function(user, sliderIdx) {
+const timeRegExp = new RegExp("^\\s*" + timePattern + "\\s*$");
+var onInputTime = function (user, sliderIdx) {
   let time = user.value.match(timeRegExp); //validate user input
   if (time) {
     let sec = toNearest5ms(timeStringToSec(time[0]));
@@ -670,97 +779,105 @@ var onInputTime = function(user, sliderIdx) {
     }
   }
   updateLoopUI();
-}
+};
 
-var updateLoopUI = function(updateSlider = true) {
+var updateLoopUI = function (updateSlider = true) {
   myTimeA.value = secToTimeString(Math.max(timeA, 0));
   myTimeB.value = secToTimeString(Math.min(timeB, getDuration()));
   if (updateSlider) {
     $("#slider").slider("option", "max", getDuration());
     $("#slider").slider("option", "values", [timeA, timeB]);
   }
-}
+};
 
-var onLoopBackwards = function() {
+var onLoopBackwards = function () {
   let dt = timeB - timeA;
   if (timeA - tLavg - dt < 0) return;
   timeB = timeA - tLavg;
   timeA = timeB - dt;
   loopMeas.splice(0);
   updateLoopUI();
-}
+};
 
-var onLoopHalve = function() {
+var onLoopHalve = function () {
   let dt = timeB - timeA;
   if ((dt - tLavg) / 2 < 0.005) return;
   timeB = timeA + (dt - tLavg) / 2;
   loopMeas.splice(0);
   updateLoopUI();
-}
+};
 
-var onLoopDouble = function() {
+var onLoopDouble = function () {
   let dt = timeB - timeA;
   if (timeB + tLavg + dt > getDuration()) return;
   timeB += tLavg + dt;
   loopMeas.splice(0);
   updateLoopUI();
-}
+};
 
-var onLoopForwards = function() {
+var onLoopForwards = function () {
   let dt = timeB - timeA;
   if (timeB + tLavg + dt > getDuration()) return;
   timeA = timeB + tLavg;
   timeB = timeA + dt;
   loopMeas.splice(0);
   updateLoopUI();
-}
+};
 
 var rate; //current playback rate (speed)
 var beatNormal; //beat length at normal speed in s
 var beatsArr = [];
 var tapTimeout;
-var onTap = function(ui, button = 0) {
+var onTap = function (ui, button = 0) {
   if (button > 0) return;
   beatsArr.push(performance.now() / 1000);
   if (beatsArr.length > 2) {
-    let change = (beatsArr.at(-1) - beatsArr.at(-2)) / (beatsArr.at(-2) - beatsArr.at(-3));
+    let change =
+      (beatsArr.at(-1) - beatsArr.at(-2)) / (beatsArr.at(-2) - beatsArr.at(-3));
     if (change >= 2 || change <= 0.5) {
       beatsArr.splice(0, beatsArr.length - 1);
     }
   }
   if (beatsArr.length > 1) {
     let beat = (beatsArr.at(-1) - beatsArr[0]) / (beatsArr.length - 1);
-    let tempo = Math.round(60 / beat * 1e6) / 1e6;
-    beatNormal = 60 * rate / tempo;
+    let tempo = Math.round((60 / beat) * 1e6) / 1e6;
+    beatNormal = (60 * rate) / tempo;
     ui.innerHTML = Math.round(tempo).toString();
     //save beat to storage
     if (tapTimeout) clearTimeout(tapTimeout);
-    tapTimeout = setTimeout((id, bn) => {
-      if (id) {
-        let entry = {};
-        if (storage.getItem("ab." + id)) entry = JSON.parse(storage.getItem("ab." + id));
-        entry.bn = bn;
-        storageWriteKeyVal("ab." + id, JSON.stringify(entry));
-      }
-    }, 3000, vidId, beatNormal);
+    tapTimeout = setTimeout(
+      (id, bn) => {
+        if (id) {
+          let entry = {};
+          if (storage.getItem("ab." + id))
+            entry = JSON.parse(storage.getItem("ab." + id));
+          entry.bn = bn;
+          storageWriteKeyVal("ab." + id, JSON.stringify(entry));
+        }
+      },
+      3000,
+      vidId,
+      beatNormal
+    );
   }
-}
+};
 
-var onContextTap = function(e) {
+var onContextTap = function (e) {
   if (e.target.disabled) return;
   e.preventDefault();
   let curTempo;
   if (beatNormal) {
-    curTempo = Math.round(60 / beatNormal * rate * 1e6) / 1e6;
+    curTempo = Math.round((60 / beatNormal) * rate * 1e6) / 1e6;
   }
   dialogBtns = promptDialog(
-    tempo => {
+    (tempo) => {
       if (!isNaN(Number(tempo)) && Number(tempo) > 0) {
-        beatNormal = 60 * rate / Math.round(tempo * 1e6) * 1e6;
+        beatNormal = ((60 * rate) / Math.round(tempo * 1e6)) * 1e6;
         e.target.innerHTML = Math.round(tempo).toString();
         if (vidId) {
           let entry = {};
-          if (storage.getItem("ab." + vidId)) entry = JSON.parse(storage.getItem("ab." + vidId));
+          if (storage.getItem("ab." + vidId))
+            entry = JSON.parse(storage.getItem("ab." + vidId));
           entry.bn = beatNormal;
           storageWriteKeyVal("ab." + vidId, JSON.stringify(entry));
         }
@@ -770,7 +887,8 @@ var onContextTap = function(e) {
         if (vidId) {
           let entry = {},
             old;
-          if (storage.getItem("ab." + vidId)) old = JSON.parse(storage.getItem("ab." + vidId));
+          if (storage.getItem("ab." + vidId))
+            old = JSON.parse(storage.getItem("ab." + vidId));
           if (old && old.bmks) {
             entry.bmks = old.bmks;
             storageWriteKeyVal("ab." + vidId, JSON.stringify(entry));
@@ -778,61 +896,72 @@ var onContextTap = function(e) {
         }
       }
     },
-    null, "Enter tempo (BPM):", (beatNormal ? null : "<a number, e. g. 120.345>"), curTempo, {
+    null,
+    "Enter tempo (BPM):",
+    beatNormal ? null : "<a number, e. g. 120.345>",
+    curTempo,
+    {
       r: 1,
-      c: 28
+      c: 28,
     }
   );
-}
+};
 
-var bmkAdd = function(note = undefined, idx = undefined) {
+var bmkAdd = function (note = undefined, idx = undefined) {
   let bmks, bn;
   [bmks, bn] = queryBmksAndBn(vidId);
-  if (idx === undefined) { //new bookmark
+  if (idx === undefined) {
+    //new bookmark
     if (!bmks) bmks = [];
     let bmk = {
       ta: timeA,
-      tb: timeB
+      tb: timeB,
     };
-    idx = bmks.findIndex(bm => bmk.ta == bm.ta && bmk.tb == bm.tb);
+    idx = bmks.findIndex((bm) => bmk.ta == bm.ta && bmk.tb == bm.tb);
     if (idx == -1) idx = insertBmk(bmk, bmks);
-  } else { //add note to existing
+  } else {
+    //add note to existing
     bmks[idx] = {
       ta: bmks[idx].ta,
-      tb: bmks[idx].tb
+      tb: bmks[idx].tb,
     };
     if (note.trim()) bmks[idx].note = note.trim();
   }
   let entry = {
-    bmks: bmks
+    bmks: bmks,
   };
   if (bn) entry.bn = bn;
   if (beatNormal) entry.bn = beatNormal; //update
   storageWriteKeyVal("ab." + vidId, JSON.stringify(entry));
   bookmarksUpdate(bmks, idx);
-}
+};
 
 //insert a bookmark at its correct position (sorted by time)
 //into a bookmarks array
-var insertBmk = function(sbm, tbmArr) {
-  let idx = tbmArr.findIndex(tbm => sbm.ta == tbm.ta && sbm.tb == tbm.tb);
-  if (idx > -1) { //update existing
+var insertBmk = function (sbm, tbmArr) {
+  let idx = tbmArr.findIndex((tbm) => sbm.ta == tbm.ta && sbm.tb == tbm.tb);
+  if (idx > -1) {
+    //update existing
     tbmArr.splice(idx, 1, sbm);
     return idx;
   }
-  idx = tbmArr.findIndex(tbm => sbm.ta < tbm.ta || sbm.ta == tbm.ta && sbm.tb < tbm.tb);
-  if (idx > -1) { //insert as new
+  idx = tbmArr.findIndex(
+    (tbm) => sbm.ta < tbm.ta || (sbm.ta == tbm.ta && sbm.tb < tbm.tb)
+  );
+  if (idx > -1) {
+    //insert as new
     tbmArr.splice(idx, 0, sbm);
     return idx;
   }
   idx = tbmArr.length; //append as new
   tbmArr.push(sbm);
   return idx;
-}
+};
 
-const toNearest5ms = t => Math.round(t * 200) / 200;
+const toNearest5ms = (t) => Math.round(t * 200) / 200;
 
-var bookmarksUpdate = function(bmkArr, idx) { //selected idx
+var bookmarksUpdate = function (bmkArr, idx) {
+  //selected idx
   while (myBookmarks.options.length > 1)
     myBookmarks.remove(myBookmarks.options.length - 1);
   onBmkSelect(0);
@@ -852,9 +981,9 @@ var bookmarksUpdate = function(bmkArr, idx) { //selected idx
   $("#myBookmarks").selectmenu("refresh");
   if (myBookmarks.options.length > 1) $("#myBmkSpan").show();
   else $("#myBmkSpan").hide();
-}
+};
 
-var bmkDelete = function(idx) {
+var bmkDelete = function (idx) {
   let bmks, bn;
   [bmks, bn] = queryBmksAndBn(vidId);
   if (idx == 0) {
@@ -870,56 +999,59 @@ var bmkDelete = function(idx) {
     let a, b;
     [a, b] = JSON.parse(myBookmarks.options[idx].value);
     if (!bmks) bmks = [];
-    let i = bmks.findIndex(bmk => a == bmk.ta && b == bmk.tb);
+    let i = bmks.findIndex((bmk) => a == bmk.ta && b == bmk.tb);
     if (i > -1) {
       bmks.splice(i, 1);
       let entry = {};
       if (bmks.length) entry.bmks = bmks;
       if (bn) entry.bn = bn;
       if (beatNormal) entry.bn = beatNormal;
-      if (bmks.length || bn || beatNormal) storageWriteKeyVal("ab." + vidId, JSON.stringify(entry));
+      if (bmks.length || bn || beatNormal)
+        storageWriteKeyVal("ab." + vidId, JSON.stringify(entry));
       else storage.removeItem("ab." + vidId);
       bookmarksUpdate(bmks, Math.min(i, bmks.length - 1));
     } else {
       bookmarksUpdate(bmks, Math.min(idx - 1, bmks.length - 1));
     }
   }
-}
+};
 
-var onClickTrash = function(idx) {
-  if (idx == 0) { //all items
+var onClickTrash = function (idx) {
+  if (idx == 0) {
+    //all items
     dialogBtns = confirmDialog(
       "Really delete <b>ALL</b> bookmarked loops?",
-      function(res) {
+      function (res) {
         if (res) bmkDelete(0);
       }
     );
-  } else { //selected item
-    dialogBtns = confirmDialog(
-      "Delete this loop?",
-      function(res) {
-        if (res) bmkDelete(idx);
-      }
-    );
+  } else {
+    //selected item
+    dialogBtns = confirmDialog("Delete this loop?", function (res) {
+      if (res) bmkDelete(idx);
+    });
   }
-}
+};
 
-var onClickAddNote = function(idx) {
+var onClickAddNote = function (idx) {
   let currentNote = myBookmarks.options[idx].title;
   dialogBtns = promptDialog(
-    note => bmkAdd(note, idx - 1),
-    null, "Enter description:", (currentNote ? null : "<Add note here>"), currentNote
+    (note) => bmkAdd(note, idx - 1),
+    null,
+    "Enter description:",
+    currentNote ? null : "<Add note here>",
+    currentNote
   );
-}
+};
 
 var textFile = null;
-var onClickExport = function() {
+var onClickExport = function () {
   let appData = {};
   Object.entries(JSON.parse(JSON.stringify(storage))).forEach(([k, v]) => {
     if (k.match(/^ab\./)) appData[k] = v;
   });
   let data = new Blob([JSON.stringify(appData, null, 2)], {
-    type: "application/json"
+    type: "application/json",
   });
   if (textFile !== null) URL.revokeObjectURL(textFile);
   textFile = URL.createObjectURL(data);
@@ -927,57 +1059,67 @@ var onClickExport = function() {
   link.href = textFile;
   link.setAttribute("download", "ABLoopPlayer.json");
   link.click();
-}
+};
 
-var onClickImport = function() {
+var onClickImport = function () {
   let input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json";
   input.multiple = false;
-  input.onchange = e => {
+  input.onchange = (e) => {
     let file = e.target.files[0];
     let reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = (e) => {
       try {
         mergeData(convertData(JSON.parse(e.target.result)));
         // update YT input field
-        while (YTids.childNodes.length)
-          YTids.removeChild(YTids.lastChild);
+        while (YTids.childNodes.length) YTids.removeChild(YTids.lastChild);
         for (let i = 0; i < knownIDs.length && i < 100; i++) {
           let z = document.createElement("OPTION");
           z.setAttribute("value", knownIDs[i]);
           YTids.appendChild(z);
         }
-        inputYT.value = knownIDs.length ? knownIDs[0] : "https://youtu.be/2kotK9FNEYU";
-        dialogBtns = messageBox("Import", "Loop data and app settings successfully imported.");
+        inputYT.value = knownIDs.length
+          ? knownIDs[0]
+          : "https://youtu.be/2kotK9FNEYU";
+        dialogBtns = messageBox(
+          "Import",
+          "Loop data and app settings successfully imported."
+        );
         let bmks, bn;
         [bmks, bn] = queryBmksAndBn(vidId);
         if (bmks) bookmarksUpdate(bmks, -1);
         if (bn) {
           beatNormal = bn;
-          tapButton.innerHTML = Math.round(60 / beatNormal * rate).toString();
+          tapButton.innerHTML = Math.round((60 / beatNormal) * rate).toString();
         } else tapButton.innerHTML = "tap";
       } catch (err) {
-        dialogBtns = messageBox("Error",
+        dialogBtns = messageBox(
+          "Error",
           "<p>Loop data and app settings could not be imported.</p>" +
-          err.name + ": " + err.message);
+            err.name +
+            ": " +
+            err.message
+        );
       }
-    }
+    };
     reader.readAsText(file, "UTF-8");
-  }
+  };
   input.click();
-}
+};
 
 var aonlyTitleChecked = "Uncheck to enable video display.";
 var aonlyTitleUnChecked = "Suppress video display.";
-var introTitleChecked = "Uncheck to always skip media section up to \"A\".";
-var introTitleUnChecked = "If checked, media section up to \"A\"" +
+var introTitleChecked = 'Uncheck to always skip media section up to "A".';
+var introTitleUnChecked =
+  'If checked, media section up to "A"' +
   " is played before starting the loop.";
 var quantTitleChecked = "Uncheck to stop loop quantisation. Hotkey: [Q]";
-var quantTitleUnChecked = "Start loop quantisation (auto-adjustment). Hotkey: [Q]\n" +
+var quantTitleUnChecked =
+  "Start loop quantisation (auto-adjustment). Hotkey: [Q]\n" +
   "Tempo (BPM) needs to be tapped or entered via the tap button's context menu beforehand.";
 
-var contextHelp = function(t) {
+var contextHelp = function (t) {
   if (t.checked) {
     storageWriteKeyVal("ab.help", "checked");
     t.title = "Uncheck to disable context-sensitive help.";
@@ -986,29 +1128,46 @@ var contextHelp = function(t) {
     quant.title = quant.checked ? quantTitleChecked : quantTitleUnChecked;
     inputYT.title = "Paste a valid YouTube URL, video or playlist ID.";
     searchButtonYT.title = "Play video.";
-    inputVT.title = "Browse the hard disk for media files (mp4/H.264, webm, ogg, mp3, wav, ...).";
-    loopButton.title = "Click twice to mark loop range. Third click cancels current loop." +
+    inputVT.title =
+      "Browse the hard disk for media files (mp4/H.264, webm, ogg, mp3, wav, ...).";
+    loopButton.title =
+      "Click twice to mark loop range. Third click cancels current loop." +
       " Hotkeys: [Esc], [L]";
-    myBmkSpanInner.title = myBmkSpanInnerTitleBak = "Choose from previously saved loops.";
+    myBmkSpanInner.title = myBmkSpanInnerTitleBak =
+      "Choose from previously saved loops.";
     bmkAddButton.title = "Save current loop to the list of bookmarks.";
-    loopBackwardsButton.title = "Shift loop window backwards by one loop duration.";
+    loopBackwardsButton.title =
+      "Shift loop window backwards by one loop duration.";
     loopHalveButton.title = "Halve the loop duration.";
     loopDoubleButton.title = "Double the loop duration.";
-    loopForwardsButton.title = "Shift loop window forwards by one loop duration.";
-    jumpToA.title = "Jump to \"A\". Hotkey: [A]";
-    myTimeA.title = myTimeB.title = "Fine-tune the loop. Input format: [hh:]mm:ss[.sss]";
+    loopForwardsButton.title =
+      "Shift loop window forwards by one loop duration.";
+    jumpToA.title = 'Jump to "A". Hotkey: [A]';
+    myTimeA.title = myTimeB.title =
+      "Fine-tune the loop. Input format: [hh:]mm:ss[.sss]";
     annotButton.title = "Add a note to the currently selected bookmark.";
-    trashButton.title = "Delete currently selected / delete all bookmarked loops.";
-    $("#speed").attr("title", "Select playback rate. Reset to \"1\" with double click.");
-    shareButton.title = "Share player link with the current YouTube video or playlist, loop settings and playback rate.";
-    exportButton.title = "Export loop database and player settings to file \"ABLoopPlayer.json\". " +
-      "Check your \"Downloads\" folder.";
-    importButton.title = "Import file \"ABLoopPlayer.json\" with loop database and player settings " +
+    trashButton.title =
+      "Delete currently selected / delete all bookmarked loops.";
+    $("#speed").attr(
+      "title",
+      'Select playback rate. Reset to "1" with double click.'
+    );
+    shareButton.title =
+      "Share player link with the current YouTube video or playlist, loop settings and playback rate.";
+    exportButton.title =
+      'Export loop database and player settings to file "ABLoopPlayer.json". ' +
+      'Check your "Downloads" folder.';
+    importButton.title =
+      'Import file "ABLoopPlayer.json" with loop database and player settings ' +
       "from another computer or browser.";
-    $("#slider").attr("title", "Move slider handles to adjust the loop. " +
-      "Press [Ctrl] while moving a handle to shift the entire loop window. " +
-      "Also, the handle that currently has keyboard focus can be moved with the arrow keys [←] , [→].");
-    tapButton.title = "Tap tempo, or enter a number via mouse right-click. Hotkey: [T]";
+    $("#slider").attr(
+      "title",
+      "Move slider handles to adjust the loop. " +
+        "Press [Ctrl] while moving a handle to shift the entire loop window. " +
+        "Also, the handle that currently has keyboard focus can be moved with the arrow keys [←] , [→]."
+    );
+    tapButton.title =
+      "Tap tempo, or enter a number via mouse right-click. Hotkey: [T]";
   } else {
     storageWriteKeyVal("ab.help", "unchecked");
     t.title = "Enable context-sensitive help.";
@@ -1020,9 +1179,11 @@ var contextHelp = function(t) {
       searchButtonYT.title =
       inputVT.title =
       loopButton.title =
-      myBmkSpanInner.title = myBmkSpanInnerTitleBak =
+      myBmkSpanInner.title =
+      myBmkSpanInnerTitleBak =
       jumpToA.title =
-      myTimeA.title = myTimeB.title =
+      myTimeA.title =
+      myTimeB.title =
       bmkAddButton.title =
       loopBackwardsButton.title =
       loopHalveButton.title =
@@ -1035,11 +1196,11 @@ var contextHelp = function(t) {
       exportButton.title =
       importButton.title =
       tapButton.title =
-      "";
+        "";
   }
-}
+};
 
-var cancelABLoop = function() {
+var cancelABLoop = function () {
   $("#timeInputs").hide();
   isTimeASet = isTimeBSet = false;
   loopButton.innerHTML = "A";
@@ -1050,9 +1211,9 @@ var cancelABLoop = function() {
   $("#myBookmarks").prop("selectedIndex", 0).selectmenu("refresh");
   loopMeas.splice(0);
   toggleQuant(quant, help);
-}
+};
 
-var resetUI = function() {
+var resetUI = function () {
   vidObj = undefined;
   vidId = undefined;
   lstId = undefined;
@@ -1071,21 +1232,21 @@ var resetUI = function() {
   rate = 1.0;
   aonly.disabled = false;
   tLavg = tLcount = 0;
-}
+};
 
-var onRateChange = function(e) {
+var onRateChange = function (e) {
   rate = getPlaybackRate();
   $("#speed").slider("value", rate);
   $("#speed .ui-slider-handle").text(rate);
   loopMeas.splice(0);
   tLavg = tLcount = 0;
   if (beatNormal) {
-    tapButton.innerHTML = Math.round(60 / beatNormal * rate).toString();
+    tapButton.innerHTML = Math.round((60 / beatNormal) * rate).toString();
   }
-}
+};
 
 //loop & app data conversion to current format
-var convertData = function(data) {
+var convertData = function (data) {
   let storageFormat = Number(data["ab.version"]);
   if (storageFormat == appversion) return data;
   let ytubeids = []; //YouTube data
@@ -1102,24 +1263,26 @@ var convertData = function(data) {
   if (data["ab.knownMedia"]) delete data["ab.knownMedia"];
   if (mediaids.length) data["ab.knownMedia"] = JSON.stringify(mediaids);
   //now, process both lists
-  [ytubeids, mediaids].forEach(ids => {
+  [ytubeids, mediaids].forEach((ids) => {
     if (ids.length) {
-      ids.forEach(id => {
+      ids.forEach((id) => {
         if (data["ab." + id] && JSON.parse(data["ab." + id]).length) {
           let bmks = JSON.parse(data["ab." + id]);
-          bmks = bmks.map(bmk => {
-            if (bmk.note) return {
-              ta: Number(bmk.ta),
-              tb: Number(bmk.tb),
-              note: bmk.note
-            };
-            else return {
-              ta: Number(bmk.ta),
-              tb: Number(bmk.tb)
-            };
+          bmks = bmks.map((bmk) => {
+            if (bmk.note)
+              return {
+                ta: Number(bmk.ta),
+                tb: Number(bmk.tb),
+                note: bmk.note,
+              };
+            else
+              return {
+                ta: Number(bmk.ta),
+                tb: Number(bmk.tb),
+              };
           });
           data["ab." + id] = JSON.stringify({
-            bmks: bmks
+            bmks: bmks,
           });
         }
       });
@@ -1127,10 +1290,10 @@ var convertData = function(data) {
   });
   data["ab.version"] = appversion;
   return data;
-}
+};
 
 //merge converted/imported data into localStorage
-var mergeData = function(data) {
+var mergeData = function (data) {
   let ytSrcIds = [],
     mmSrcIds = [];
   if (data["ab.knownIDs"]) {
@@ -1141,9 +1304,9 @@ var mergeData = function(data) {
   if (data["ab.knownMedia"]) mmSrcIds = JSON.parse(data["ab.knownMedia"]);
   [
     [ytSrcIds, knownIDs],
-    [mmSrcIds, knownMedia]
+    [mmSrcIds, knownMedia],
   ].forEach(([src, trg]) => {
-    src.reverse().forEach(id => {
+    src.reverse().forEach((id) => {
       if (trg.indexOf(id) == -1) trg.unshift(id);
       if (data["ab." + id]) {
         let entry = {}; //entry with merged data (bmks array and beat length)
@@ -1155,12 +1318,17 @@ var mergeData = function(data) {
         [srcBmks, srcBn] = queryBmksAndBn(id, data); //data arg
         if (srcBn) entry.bn = srcBn; //overwrite with imported
         if (srcBmks) {
-          srcBmks.forEach(sbm => { //import with some sanity checks applied
+          srcBmks.forEach((sbm) => {
+            //import with some sanity checks applied
             sbm.ta = Number(sbm.ta);
             sbm.tb = Number(sbm.tb);
             if (!isNaN(sbm.ta) && !isNaN(sbm.tb)) {
-              let ta = toNearest5ms(Math.min(Math.abs(sbm.ta), Math.abs(sbm.tb)));
-              let tb = toNearest5ms(Math.max(Math.abs(sbm.ta), Math.abs(sbm.tb)));
+              let ta = toNearest5ms(
+                Math.min(Math.abs(sbm.ta), Math.abs(sbm.tb))
+              );
+              let tb = toNearest5ms(
+                Math.max(Math.abs(sbm.ta), Math.abs(sbm.tb))
+              );
               sbm.ta = ta;
               sbm.tb = ta == tb ? toNearest5ms(tb + 0.005) : tb;
               insertBmk(sbm, trgBmks);
@@ -1172,33 +1340,36 @@ var mergeData = function(data) {
       }
     });
   });
-  if (knownIDs.length) storageWriteKeyVal("ab.knownIDs", JSON.stringify(knownIDs));
+  if (knownIDs.length)
+    storageWriteKeyVal("ab.knownIDs", JSON.stringify(knownIDs));
   else storage.removeItem("ab.knownIDs");
-  if (knownMedia.length) storageWriteKeyVal("ab.knownMedia", JSON.stringify(knownMedia));
+  if (knownMedia.length)
+    storageWriteKeyVal("ab.knownMedia", JSON.stringify(knownMedia));
   else storage.removeItem("ab.knownMedia");
   if (data["ab.help"]) {
     storageWriteKeyVal("ab.help", data["ab.help"]);
-    help.checked = (data["ab.help"] == "checked");
+    help.checked = data["ab.help"] == "checked";
     contextHelp(help);
   }
   if (data["ab.aonly"]) {
     storageWriteKeyVal("ab.aonly", data["ab.aonly"]);
-    aonly.checked = (data["ab.aonly"] == "checked");
+    aonly.checked = data["ab.aonly"] == "checked";
   }
   if (data["ab.intro"]) {
     storageWriteKeyVal("ab.intro", data["ab.intro"]);
-    intro.checked = (data["ab.intro"] == "checked");
+    intro.checked = data["ab.intro"] == "checked";
     toggleIntro(intro, help);
   }
   if (data["ab.version"]) storageWriteKeyVal("ab.version", data["ab.version"]);
-}
+};
 
-var doAfterSeek = function(callback, t, arg = null) {
-  if (t != toNearest5ms(getCurrentTime())) setTimeout(doAfterSeek, 1, callback, t, arg);
+var doAfterSeek = function (callback, t, arg = null) {
+  if (t != toNearest5ms(getCurrentTime()))
+    setTimeout(doAfterSeek, 1, callback, t, arg);
   else arg ? callback(arg) : callback();
-}
+};
 
-var onBmkSelect = function(idx) {
+var onBmkSelect = function (idx) {
   if (idx == 0) {
     annotButton.disabled = true;
     return;
@@ -1218,9 +1389,9 @@ var onBmkSelect = function(idx) {
     setCurrentTime(a);
     doAfterSeek(playVideo, a);
   } else setCurrentTime(a);
-}
+};
 
-var toggleIntro = function(t, h) {
+var toggleIntro = function (t, h) {
   if (t.checked) {
     storageWriteKeyVal("ab.intro", "checked");
     if (h.checked) t.title = introTitleChecked;
@@ -1228,15 +1399,15 @@ var toggleIntro = function(t, h) {
     storageWriteKeyVal("ab.intro", "unchecked");
     if (h.checked) t.title = introTitleUnChecked;
   }
-}
+};
 
-var toggleQuant = function(t, h) {
+var toggleQuant = function (t, h) {
   if (t.checked) {
     if (h.checked) t.title = quantTitleChecked;
   } else {
     if (h.checked) t.title = quantTitleUnChecked;
   }
-}
+};
 
 ///////////////////////////
 // YT player specific code
@@ -1248,7 +1419,7 @@ var toggleQuant = function(t, h) {
 //arg 3: list id,
 //arg 4: loop start, arg 4: loop end time
 //arg 5: playback speed
-var loadYT = function(vid, plist, lid, ta, tb, r, lType) {
+var loadYT = function (vid, plist, lid, ta, tb, r, lType) {
   initYT(); //initialize player-specific functions
   resetUI();
   //remove previous player, if there is one
@@ -1264,19 +1435,20 @@ var loadYT = function(vid, plist, lid, ta, tb, r, lType) {
   myResizable.style.backgroundColor = "#ddd";
   parent.replaceChild(myResizable, myResizableOld);
   let playerWidth = $("#myResizable").width();
-  $("#myResizable").height(playerWidth * 9 / 16);
+  $("#myResizable").height((playerWidth * 9) / 16);
   initResizableYT();
   //create and append <div> as a container for YT iframe
   let ytDiv = document.createElement("div");
   ytDiv.id = "ytDiv";
   myResizable.appendChild(ytDiv);
   let playerVars = {
-    "autoplay": 1,
-    "modestbranding": 1,
-    "fs": 0,
-    "rel": 0
-  }
-  if (vid && vid.substring(0, 4) === "idx:") playerVars["index"] = vid.substring(4);
+    autoplay: 1,
+    modestbranding: 1,
+    fs: 0,
+    rel: 0,
+  };
+  if (vid && vid.substring(0, 4) === "idx:")
+    playerVars["index"] = vid.substring(4);
   if (lid) playerVars["list"] = lid;
   if (lType) playerVars["listType"] = lType;
   if (plist) playerVars["playlist"] = plist;
@@ -1285,7 +1457,7 @@ var loadYT = function(vid, plist, lid, ta, tb, r, lType) {
     height: $("#myResizable").height(),
     playerVars: playerVars,
     events: {
-      "onReady": function(e) {
+      onReady: function (e) {
         if (searchStr) {
           inputYT.value = searchStr;
           searchStr = undefined;
@@ -1303,38 +1475,43 @@ var loadYT = function(vid, plist, lid, ta, tb, r, lType) {
         }
         aonly.disabled = true;
       },
-      "onStateChange": function(e) {
+      onStateChange: function (e) {
         let v;
-        if (e.target.getPlaylist()) v = e.target.getPlaylist()[e.target.getPlaylistIndex()].toString();
+        if (e.target.getPlaylist())
+          v = e.target.getPlaylist()[e.target.getPlaylistIndex()].toString();
         else v = vid.substring(4);
         onPlayerStateChange(e, v, ta, tb, r);
       },
-      "onPlaybackRateChange": onRateChange,
-      "onError": function(e) {
+      onPlaybackRateChange: onRateChange,
+      onError: function (e) {
         console.log("Error: " + e.data);
         resetUI();
-        if (lid && lType === "playlist") { // instead, try with "user_uploads" as list type
+        if (lid && lType === "playlist") {
+          // instead, try with "user_uploads" as list type
           loadYT(vid, null, lid, ta, tb, r, "user_uploads");
         }
-      }
-    }
-  }
-  if (vid && vid.substring(0, 4) === "vid:") playerParams["videoId"] = vid.substring(4);
+      },
+    },
+  };
+  if (vid && vid.substring(0, 4) === "vid:")
+    playerParams["videoId"] = vid.substring(4);
   //create new YT player iframe, replacing ytDiv
   ytPlayer = new YT.Player("ytDiv", playerParams);
-}
+};
 
-var onYouTubeIframeAPIReady = function() {
+var onYouTubeIframeAPIReady = function () {
   inputYT.disabled = searchButtonYT.disabled = false;
   if (document.location.search) {
     searchStr = document.location.search.substring(1); //remove leading `?'
     queryYT(searchStr);
   }
-}
+};
 
-var onPlayerStateChange = function(e, id, ta, tb, s) { //event object, video id loop start & end time, rate
+var onPlayerStateChange = function (e, id, ta, tb, s) {
+  //event object, video id loop start & end time, rate
   if (e.data == YT.PlayerState.PLAYING) {
-    if (id != vidId) { //the video has changed
+    if (id != vidId) {
+      //the video has changed
       $("#scrub").slider("option", "max", getDuration()).show();
       loopButton.disabled = false;
       cancelABLoop();
@@ -1356,7 +1533,7 @@ var onPlayerStateChange = function(e, id, ta, tb, s) { //event object, video id 
       bookmarksUpdate(bmks ? bmks : [], -1);
       if (bn) {
         beatNormal = bn;
-        tapButton.innerHTML = Math.round(60 / beatNormal * rate).toString();
+        tapButton.innerHTML = Math.round((60 / beatNormal) * rate).toString();
       } else tapButton.innerHTML = "tap";
       saveId(id);
       //set ab loop from ta, tb args only upon new player instantiation
@@ -1383,22 +1560,26 @@ var onPlayerStateChange = function(e, id, ta, tb, s) { //event object, video id 
       vidId = id;
     }
     if (!scrubTimer.length) scrubTimer.push(setInterval(onScrubTimerUpdate, 1));
-  } else if (e.data == YT.PlayerState.PAUSED || e.data == YT.PlayerState.ENDED) {
+  } else if (
+    e.data == YT.PlayerState.PAUSED ||
+    e.data == YT.PlayerState.ENDED
+  ) {
     while (scrubTimer.length) clearInterval(scrubTimer.pop());
     loopMeas.splice(0);
   } else if (e.data == YT.PlayerState.UNSTARTED) {
     cancelABLoop();
     setCurrentTime(0);
   }
-}
+};
 
-var saveId = function(id) {
+var saveId = function (id) {
   if (!id) return; //prevent erroneous `null' entry
   //prepend ID to/move ID to front of the list of valid and already
   //visited video/playlist IDs and of the datalist object
   //at first, remove all occurrences
   let idx;
-  while (knownIDs.length && (idx = knownIDs.indexOf(id)) > -1) knownIDs.splice(idx, 1);
+  while (knownIDs.length && (idx = knownIDs.indexOf(id)) > -1)
+    knownIDs.splice(idx, 1);
   for (let i = 0; i < YTids.childNodes.length; i++) {
     if (YTids.childNodes[i].getAttribute("value") == id)
       YTids.removeChild(YTids.childNodes[i]);
@@ -1409,18 +1590,22 @@ var saveId = function(id) {
   z.setAttribute("value", id);
   YTids.insertBefore(z, YTids.firstChild);
   //truncate input list to 100 elements
-  while (YTids.childNodes.length > 100)
-    YTids.removeChild(YTids.lastChild);
+  while (YTids.childNodes.length > 100) YTids.removeChild(YTids.lastChild);
   storageWriteKeyVal("ab.knownIDs", JSON.stringify(knownIDs));
-}
+};
 
-var queryYT = function(qu) {
-  let vid, plist, lid, lType, audioOnly = null;
+var queryYT = function (qu) {
+  let vid,
+    plist,
+    lid,
+    lType,
+    audioOnly = null;
   let q = "?" + qu;
   if (
     !qu.match(/videoid|listid|playlist|index/) &&
     !qu.match(/youtu\.be\/|youtube(?:-nocookie)?\..*/)
-  ) { //plain video id, list id, handle, playlist (comma or space separated video ids)
+  ) {
+    //plain video id, list id, handle, playlist (comma or space separated video ids)
     vid = qu.trim().match(/^[0-9a-zA-Z_-]{11}$/);
     if (vid) vid = "vid:" + vid[0];
     lid = qu.trim().match(/^[0-9A-Za-z_-]{12,}$/);
@@ -1429,12 +1614,19 @@ var queryYT = function(qu) {
       lid = qu.trim().match(/(?<=^@)[0-9A-Za-z_.-]{3,30}$/); //handle?
       if (lid) lType = "user_uploads";
     }
-    plist = qu.trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, ',').match(/^[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})+$/);
+    plist = qu
+      .trim()
+      .replace(/\s*,\s*/g, ",")
+      .replace(/\s+/g, ",")
+      .match(/^[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})+$/);
   } else if (qu.match(/youtu\.be\/|youtube(?:-nocookie)?\..*/)) {
     //regular YT url with video id and/or list id or playlist
-    vid = qu.match(/(?<=youtu\.be\/|\/embed\/|\/live\/|\/v\/|[?&]v=)[0-9a-zA-Z_-]{11}/);
+    vid = qu.match(
+      /(?<=youtu\.be\/|\/embed\/|\/live\/|\/v\/|[?&]v=)[0-9a-zA-Z_-]{11}/
+    );
     if (vid) vid = "vid:" + vid[0];
-    else { //try with index into list
+    else {
+      //try with index into list
       vid = qu.match(/(?<=[?&]index=)[0-9]+/);
       if (vid) vid = "idx:" + vid[0];
     }
@@ -1444,8 +1636,11 @@ var queryYT = function(qu) {
       lid = qu.match(/(?<=\/@)[0-9A-Za-z_.-]{3,30}/);
       if (lid) lType = "user_uploads";
     }
-    plist = qu.match(/(?<=[?&]playlist=)[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})*/);
-  } else { //ABLoopPlayer YT share link
+    plist = qu.match(
+      /(?<=[?&]playlist=)[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})*/
+    );
+  } else {
+    //ABLoopPlayer YT share link
     vid = q.match(/(?<=[?&]videoid=)[0-9a-zA-Z_-]{11}/);
     if (vid) vid = "vid:" + vid[0];
     else {
@@ -1458,9 +1653,12 @@ var queryYT = function(qu) {
       lid = q.match(/(?<=[?&]listid=@)[0-9A-Za-z_.-]{3,30}/);
       if (lid) lType = "user_uploads";
     }
-    plist = q.match(/(?<=[?&]playlist=)[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})*/);
+    plist = q.match(
+      /(?<=[?&]playlist=)[0-9a-zA-Z_-]{11}(?:,[0-9a-zA-Z_-]{11})*/
+    );
   }
-  if (!(vid || lid || plist)) { // last option: file URL
+  if (!(vid || lid || plist)) {
+    // last option: file URL
     vid = qu.match(/^https?:\/\/[^&]+/);
     if (vid) {
       vid = "url:" + vid[0];
@@ -1480,7 +1678,8 @@ var queryYT = function(qu) {
       vid.substring(4),
       ta ? ta[0] : null,
       tb ? tb[0] : null,
-      r, audioOnly
+      r,
+      audioOnly
     );
   } else {
     loadYT(
@@ -1493,34 +1692,35 @@ var queryYT = function(qu) {
       lType ? lType : null
     );
   }
-}
+};
 
-var initResizableYT = function() {
+var initResizableYT = function () {
   $("#myResizable").resizable({
     aspectRatio: false,
     minWidth: 160,
     minHeight: 90,
-    create: function(e, ui) {
+    create: function (e, ui) {
       $("#scrub").width($("#myResizable").width() - 2);
       $("#slider").width($("#myResizable").width() - 2);
     },
-    start: function(e, ui) {
+    start: function (e, ui) {
       $(ytDiv).hide();
     },
-    stop: function(e, ui) {
+    stop: function (e, ui) {
       ytPlayer.setSize(ui.size.width, ui.size.height);
       $(ytDiv).show();
     },
-    resize: function(e, ui) {
+    resize: function (e, ui) {
       $("#scrub").width(ui.size.width - 2);
       $("#slider").width(ui.size.width - 2);
       $("#introText").width(Math.max(ui.size.width, $("#widthA").width() + 1));
-      introTextBr.style.display = ui.size.width > $("#widthB").width() + 1 ? "none" : "block";
-    }
+      introTextBr.style.display =
+        ui.size.width > $("#widthB").width() + 1 ? "none" : "block";
+    },
   });
-}
+};
 
-var onClickShare = function() {
+var onClickShare = function () {
   let sharelink = document.URL;
   let idx = sharelink.indexOf("?");
   if (idx > -1) sharelink = sharelink.substring(0, idx);
@@ -1531,7 +1731,8 @@ var onClickShare = function() {
     if (playlist) {
       if (lstId) sharelink += "?listid=" + lstId;
       else sharelink += "?playlist=" + playlist.join();
-      sharelink += "&videoid=" + ytPlayer.getPlaylist()[ytPlayer.getPlaylistIndex()];
+      sharelink +=
+        "&videoid=" + ytPlayer.getPlaylist()[ytPlayer.getPlaylistIndex()];
     } else {
       sharelink += "?videoid=" + vidId;
     }
@@ -1541,14 +1742,14 @@ var onClickShare = function() {
   if (rate != 1.0) sharelink += "&rate=" + rate;
   navigator.clipboard.writeText(sharelink);
   dialogBtns = messageBox("Link copied to the clipboard:", sharelink);
-}
+};
 
 /////////////////////////
 // <video> specific code
 /////////////////////////
 var myVideo;
 
-var playSelectedFile = function(f, ta, tb, s, audioOnly) {
+var playSelectedFile = function (f, ta, tb, s, audioOnly) {
   initVT(); //initialize player-specific functions
   resetUI();
   //replace #myResizable container and its #myVideo child
@@ -1567,7 +1768,8 @@ var playSelectedFile = function(f, ta, tb, s, audioOnly) {
   let vol = storage.getItem("ab.mediaVolume");
   myVideo.volume = vol ? Number(vol) : 0.5;
   myVideo.width = $("#myResizable").width();
-  myVideo.addEventListener("durationchange", function(e) {
+  myVideo.style = "width: 100%";
+  myVideo.addEventListener("durationchange", function (e) {
     while (scrubTimer.length) clearInterval(scrubTimer.pop());
     loopMeas.splice(0);
     if (isFinite(e.target.duration)) {
@@ -1602,32 +1804,34 @@ var playSelectedFile = function(f, ta, tb, s, audioOnly) {
     }
     onLoadedDataVT(e, ta, tb, s);
   });
-  myVideo.addEventListener("play", function() {
+  myVideo.addEventListener("play", function () {
     loopMeas.splice(0);
     setPlaybackRate(Number($("#speed").slider("value")));
     this.removeEventListener("timeupdate", onTimeUpdateVT);
     if (!scrubTimer.length) scrubTimer.push(setInterval(onScrubTimerUpdate, 1));
   });
-  myVideo.addEventListener("pause", function(e) {
+  myVideo.addEventListener("pause", function (e) {
     this.addEventListener("timeupdate", onTimeUpdateVT);
     while (scrubTimer.length) clearInterval(scrubTimer.pop());
     loopMeas.splice(0);
   });
-  myVideo.addEventListener("error", function(e) {
+  myVideo.addEventListener("error", function (e) {
     console.log("Error: " + e.target + " " + e.message);
     resetUI();
   });
   myVideo.addEventListener("ratechange", onRateChange);
-  myVideo.addEventListener("volumechange", function(e) {
+  myVideo.addEventListener("volumechange", function (e) {
     storageWriteKeyVal("ab.mediaVolume", e.target.volume);
   });
   myResizable.appendChild(myVideo);
-  if (f) { //a media file was selected
+  if (f) {
+    //a media file was selected
     $("#speed").slider("option", "disabled", true);
     $("#speed .ui-slider-handle").prop("tabindex", -1);
     tapButton.disabled = true;
     //set video source
-    if (f instanceof File) { // local file
+    if (f instanceof File) {
+      // local file
       try {
         //Modern browsers should support File object as value for HTMLMediaElement.srcObject, see
         //https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/srcObject#value,
@@ -1636,22 +1840,23 @@ var playSelectedFile = function(f, ta, tb, s, audioOnly) {
       } catch (e) {
         myVideo.src = URL.createObjectURL(f);
       }
-    } else { // f is a string (URL)
+    } else {
+      // f is a string (URL)
       myVideo.src = f;
     }
   }
-}
+};
 
-var onTimeUpdateVT = function(e) {
+var onTimeUpdateVT = function (e) {
   $("#scrub").slider("option", "value", e.target.currentTime);
 };
 
-var onLoadedDataVT = function(e, ta, tb, s) {
+var onLoadedDataVT = function (e, ta, tb, s) {
   if (!aonly.checked) {
-    e.target.addEventListener("mouseover", function(e) {
+    e.target.addEventListener("mouseover", function (e) {
       e.target.controls = true;
     });
-    e.target.addEventListener("mouseout", function(e) {
+    e.target.addEventListener("mouseout", function (e) {
       e.target.controls = false;
     });
   }
@@ -1665,7 +1870,7 @@ var onLoadedDataVT = function(e, ta, tb, s) {
   bookmarksUpdate(bmks ? bmks : [], -1);
   if (bn) {
     beatNormal = bn;
-    tapButton.innerHTML = Math.round(60 / beatNormal * rate).toString();
+    tapButton.innerHTML = Math.round((60 / beatNormal) * rate).toString();
   } else tapButton.innerHTML = "tap";
   //set ab loop from ta, tb args
   if (ta || tb) {
@@ -1688,30 +1893,31 @@ var onLoadedDataVT = function(e, ta, tb, s) {
     loopButton.innerHTML = "&emsp;";
     loopButton.style.backgroundImage = crossMarkUrl;
   }
-}
+};
 
-var saveMediaId = function(id) {
+var saveMediaId = function (id) {
   //prepend ID to/move ID to front of the visited media files list
   //at first, remove all occurrences
   let idx;
-  while (knownMedia.length && (idx = knownMedia.indexOf(id)) > -1) knownMedia.splice(idx, 1);
+  while (knownMedia.length && (idx = knownMedia.indexOf(id)) > -1)
+    knownMedia.splice(idx, 1);
   //now add to the head
   knownMedia.unshift(id);
   storageWriteKeyVal("ab.knownMedia", JSON.stringify(knownMedia));
-}
+};
 
 var initHeight;
-var initResizableVT = function() {
+var initResizableVT = function () {
   $("#myResizable").resizable({
     aspectRatio: !aonly.checked,
     minWidth: aonly.checked ? $("#myResizable").width() : 160,
-    create: function(e, ui) {
+    create: function (e, ui) {
       myVideo.width = $("#myResizable").width();
       initHeight = $("#myResizable").height();
       $("#scrub").width($("#myResizable").width() - 2);
       $("#slider").width($("#myResizable").width() - 2);
     },
-    resize: function(e, ui) {
+    resize: function (e, ui) {
       myVideo.width = ui.size.width;
       if (aonly.checked) {
         ui.size.height = initHeight;
@@ -1721,19 +1927,20 @@ var initResizableVT = function() {
       $("#scrub").width(ui.size.width - 2);
       $("#slider").width(ui.size.width - 2);
       $("#introText").width(Math.max(ui.size.width, $("#widthA").width() + 1));
-      introTextBr.style.display = ui.size.width > $("#widthB").width() + 1 ? "none" : "block";
-    }
+      introTextBr.style.display =
+        ui.size.width > $("#widthB").width() + 1 ? "none" : "block";
+    },
   });
 };
 
-var toggleAudio = function(t, h) {
+var toggleAudio = function (t, h) {
   if (h.checked) {
     t.title = t.checked ? aonlyTitleChecked : aonlyTitleUnChecked;
   }
   if (t.checked) storageWriteKeyVal("ab.aonly", "checked");
   else storageWriteKeyVal("ab.aonly", "unchecked");
   playSelectedFile(vidObj, null, null, null, t.checked);
-}
+};
 
 //functions with player specific implementation
 var getCurrentTime;
@@ -1747,64 +1954,67 @@ var playVideo;
 var isPlaying;
 
 //initialisation functions
-var initYT = function() { // YT
-  getCurrentTime = function() {
+var initYT = function () {
+  // YT
+  getCurrentTime = function () {
     return ytPlayer.getCurrentTime();
   };
-  setCurrentTime = function(t) {
+  setCurrentTime = function (t) {
     ytPlayer.seekTo(t, true);
   };
-  getDuration = function() {
+  getDuration = function () {
     return Math.floor(ytPlayer.getDuration() * 200) / 200;
   };
-  getPlaybackRate = function() {
+  getPlaybackRate = function () {
     return ytPlayer.getPlaybackRate();
   };
-  setPlaybackRate = function(r) {
+  setPlaybackRate = function (r) {
     ytPlayer.setPlaybackRate(r);
   };
-  playPause = function() {
-    if (ytPlayer.getPlayerState() == YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+  playPause = function () {
+    if (ytPlayer.getPlayerState() == YT.PlayerState.PLAYING)
+      ytPlayer.pauseVideo();
     else ytPlayer.playVideo();
-  }
-  pauseVideo = function() {
+  };
+  pauseVideo = function () {
     ytPlayer.pauseVideo();
-  }
-  playVideo = function() {
+  };
+  playVideo = function () {
     ytPlayer.playVideo();
-  }
-  isPlaying = function() {
-    return (ytPlayer.getPlayerState() == YT.PlayerState.PLAYING);
-  }
-}
+  };
+  isPlaying = function () {
+    return ytPlayer.getPlayerState() == YT.PlayerState.PLAYING;
+  };
+};
 
-var initVT = function() { // <video> tag
-  getCurrentTime = function() {
+var initVT = function () {
+  // <video> tag
+  getCurrentTime = function () {
     return myVideo.currentTime;
   };
-  setCurrentTime = function(t) {
+  setCurrentTime = function (t) {
     myVideo.currentTime = t;
   };
-  getDuration = function() {
+  getDuration = function () {
     return Math.floor(myVideo.duration * 200) / 200;
   };
-  getPlaybackRate = function() {
+  getPlaybackRate = function () {
     return myVideo.playbackRate;
   };
-  setPlaybackRate = function(r) {
+  setPlaybackRate = function (r) {
     myVideo.playbackRate = r;
   };
-  playPause = function() {
+  playPause = function () {
     if (myVideo.paused) myVideo.play();
     else myVideo.pause();
-  }
-  pauseVideo = function() {
+  };
+  pauseVideo = function () {
     myVideo.pause();
-  }
-  playVideo = function() {
+  };
+  playVideo = function () {
     myVideo.play();
-  }
-  isPlaying = function() {
+  };
+  isPlaying = function () {
     return !myVideo.paused && !myVideo.ended;
-  }
-}
+  };
+};
