@@ -20,3 +20,7 @@ Firefox or Chrome on a Laptop or PC recommended.
 **Usage (recommended):** Use it online on [GitLab](https://agrahn.gitlab.io/ABLoopPlayer/) or [GitHub Pages](https://agrahn.github.io/ABLoopPlayer/): Paste in a valid YouTube URL, video or playlist ID, or browse the hard disk for video/audio files in one of the supported formats.
 
 **Installation (optional):** [Download from GitLab](https://agrahn.gitlab.io/ABLoopPlayer.html) and unzip the archive file. Open `ABLoopPlayer.html` in the browser. Note that some YT content may not be playable if `ABLoopPlayer.html` is installed locally on a computer or on a web server outside the U.S.
+
+# fork update - added [Wavesurfer](https://wavesurfer.xyz/) for local files
+
+<img width="1059" height="713" alt="image" src="https://github.com/user-attachments/assets/4cf645b7-07a2-4623-bf5c-60509ac589ee" />
