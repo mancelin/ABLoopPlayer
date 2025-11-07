@@ -194,6 +194,11 @@ $(document).ready(function () {
       progressColor: "#383351",
       url: fileURL,
     });
+    // on click on wavesurfer, set current time and play
+    wavesurfer.on("interaction", (newTime) => {
+      setCurrentTime(newTime);
+      playVideo();
+    });
 
     playSelectedFile(file, null, null, null, null);
   });
