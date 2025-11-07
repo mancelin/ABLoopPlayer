@@ -1,4 +1,4 @@
-# [AB Loop Player](https://agrahn.gitlab.io/ABLoopPlayer/)
+# [AB Loop Player](https://mancelin.github.io/ABLoopPlayer/)
 
 © 2016–2025 Alexander Grahn
 
