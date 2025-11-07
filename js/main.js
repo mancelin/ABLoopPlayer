@@ -148,6 +148,9 @@ var tooltipOpts = {
 
 var myBmkSpanInnerTitleBak;
 
+// audio visualization
+var wavesurfer;
+
 $(document).ready(function () {
   $("#introText").width($("#widthA").width() + 1);
   //if we are online, asynchronously load YT player api
@@ -188,7 +191,7 @@ $(document).ready(function () {
     $("#inputVT").blur(); //chromium
     const file = e.target.files[0];
     const fileURL = URL.createObjectURL(file);
-    const wavesurfer = WaveSurfer.create({
+    wavesurfer = WaveSurfer.create({
       container: "#waveform",
       waveColor: "#4F4A85",
       progressColor: "#383351",
@@ -711,6 +714,8 @@ var winSize = 7; //window size for sliding average of rewind latency
 var onScrubTimerUpdate = function () {
   let tMedia = getCurrentTime();
   $("#scrub").slider("option", "value", tMedia); //update the scrubbar
+  // update wavesurfer time
+  if (wavesurfer) wavesurfer.setTime(tMedia);
   if (!isTimeASet || !isTimeBSet) return;
   //loop control and latency measurement
   if (tMedia < timeA) loopMeas.splice(0);
